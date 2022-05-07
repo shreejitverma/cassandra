@@ -106,9 +106,7 @@ class ParseContext:
         if orig is None:
             # pretty much just guess
             return ' '.join([t[1] for t in tokens])
-        # low end of span for first token, to high end of span for last token
-        orig_text = orig[tokens[0][2][0]:tokens[-1][2][1]]
-        return orig_text
+        return orig[tokens[0][2][0]:tokens[-1][2][1]]
 
     def __repr__(self):
         return '<%s matched=%r remainder=%r prodname=%r bindings=%r>' \
@@ -220,7 +218,7 @@ class named_symbol(matcher):
 
     def match(self, ctxt, completions):
         pass_in_compls = completions
-        if self.try_registered_completion(ctxt, self.name, completions):
+        if self.try_registered_completion(ctxt, self.name, pass_in_compls):
             # don't collect other completions under this; use a dummy
             pass_in_compls = set()
         results = self.arg.match_with_results(ctxt, pass_in_compls)
@@ -234,7 +232,7 @@ class named_collector(named_symbol):
 
     def match(self, ctxt, completions):
         pass_in_compls = completions
-        if self.try_registered_completion(ctxt, self.name, completions):
+        if self.try_registered_completion(ctxt, self.name, pass_in_compls):
             # don't collect other completions under this; use a dummy
             pass_in_compls = set()
         output = []
@@ -255,14 +253,14 @@ class regex_rule(terminal_matcher):
     def __init__(self, pat):
         terminal_matcher.__init__(self, pat)
         self.regex = pat
-        self.re = re.compile(pat + '$', re.I | re.S)
+        self.re = re.compile(f'{pat}$', re.I | re.S)
 
     def match(self, ctxt, completions):
         if ctxt.remainder:
             if self.re.match(ctxt.remainder[0][1]):
                 return [ctxt.with_match(1)]
         elif completions is not None:
-            completions.add(Hint('<%s>' % ctxt.productionname))
+            completions.add(Hint(f'<{ctxt.productionname}>'))
         return []
 
     def pattern(self):
@@ -290,7 +288,7 @@ class text_match(terminal_matcher):
         # can't use (?i) here- Scanner component regex flags won't be applied
         def ignorecaseify(matchobj):
             c = matchobj.group(0)
-            return '[%s%s]' % (c.upper(), c.lower())
+            return f'[{c.upper()}{c.lower()}]'
         return self.alpha_re.sub(ignorecaseify, re.escape(self.arg))
 
 
@@ -373,26 +371,23 @@ class ParsingRuleSet:
         terminals = []
         tokeniter = iter(tokens)
         for t in tokeniter:
-            if isinstance(t, tuple) and t[0] in ('reference', 'junk'):
-                assign = next(tokeniter)
-                if assign != '::=':
-                    raise ValueError('Unexpected token %r; expected "::="' % (assign,))
-                name = t[1]
-                production = cls.read_rule_tokens_until(';', tokeniter)
-                if isinstance(production, terminal_matcher):
-                    terminals.append((name, production))
-                    production = terminal_type_matcher(name, production)
-                rules[name] = production
-            else:
+            if not isinstance(t, tuple) or t[0] not in ('reference', 'junk'):
                 raise ValueError('Unexpected token %r; expected name' % (t,))
+            assign = next(tokeniter)
+            if assign != '::=':
+                raise ValueError('Unexpected token %r; expected "::="' % (assign,))
+            name = t[1]
+            production = cls.read_rule_tokens_until(';', tokeniter)
+            if isinstance(production, terminal_matcher):
+                terminals.append((name, production))
+                production = terminal_type_matcher(name, production)
+            rules[name] = production
         return rules, terminals
 
     @staticmethod
     def mkrule(pieces):
         if isinstance(pieces, (tuple, list)):
-            if len(pieces) == 1:
-                return pieces[0]
-            return rule_series(pieces)
+            return pieces[0] if len(pieces) == 1 else rule_series(pieces)
         return pieces
 
     @classmethod
@@ -462,9 +457,7 @@ class ParsingRuleSet:
 
     def make_lexer(self):
         def make_handler(name):
-            if name == 'JUNK':
-                return None
-            return lambda s, t: (name, t, s.match.span())
+            return None if name == 'JUNK' else (lambda s, t: (name, t, s.match.span()))
         regexes = [(p.pattern(), make_handler(name)) for (name, p) in self.terminals]
         return SaferScanner(regexes, re.I | re.S | re.U).scan
 

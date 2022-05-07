@@ -54,11 +54,20 @@ def ssl_settings(host, config_file, env=os.environ):
         # https://docs.python.org/2/library/ssl.html#ssl.PROTOCOL_TLS
         # https://docs.python.org/3/library/ssl.html#ssl.PROTOCOL_TLS
         if ssl_ver_str:
-            return getattr(ssl, "PROTOCOL_%s" % ssl_ver_str, None)
-        for protocol in ['PROTOCOL_TLS', 'PROTOCOL_TLSv1_2', 'PROTOCOL_TLSv1_1', 'PROTOCOL_TLSv1']:
-            if hasattr(ssl, protocol):
-                return getattr(ssl, protocol)
-        return None
+            return getattr(ssl, f"PROTOCOL_{ssl_ver_str}", None)
+        return next(
+            (
+                getattr(ssl, protocol)
+                for protocol in [
+                    'PROTOCOL_TLS',
+                    'PROTOCOL_TLSv1_2',
+                    'PROTOCOL_TLSv1_1',
+                    'PROTOCOL_TLSv1',
+                ]
+                if hasattr(ssl, protocol)
+            ),
+            None,
+        )
 
     ssl_validate = env.get('SSL_VALIDATE')
     if ssl_validate is None:

@@ -97,8 +97,7 @@ def list_bifilter(pred, iterable):
 
     yes_s = []
     no_s = []
-    for i in iterable:
-        (yes_s if pred(i) else no_s).append(i)
+    (yes_s if pred(i) else no_s).extend(iter(iterable))
     return yes_s, no_s
 
 
@@ -107,9 +106,7 @@ def identity(x):
 
 
 def trim_if_present(s, prefix):
-    if s.startswith(prefix):
-        return s[len(prefix):]
-    return s
+    return s[len(prefix):] if s.startswith(prefix) else s
 
 
 def get_file_encoding_bomsize(filename):
@@ -125,12 +122,14 @@ def get_file_encoding_bomsize(filename):
                      (codecs.BOM_UTF32_BE, 'utf-32be'))
 
     firstbytes = open(filename, 'rb').read(4)
-    for bom, encoding in bom_encodings:
-        if firstbytes.startswith(bom):
-            file_encoding, size = encoding, len(bom)
-            break
-    else:
-        file_encoding, size = "utf-8", 0
+    file_encoding, size = next(
+        (
+            (encoding, len(bom))
+            for bom, encoding in bom_encodings
+            if firstbytes.startswith(bom)
+        ),
+        ("utf-8", 0),
+    )
 
     return file_encoding, size
 

@@ -20,7 +20,7 @@ class CQL3HelpTopics(object):
         return [t[5:] for t in dir(self) if t.startswith('help_')]
 
     def get_help_topic(self, topic):
-        return getattr(self, 'help_' + topic.lower())()
+        return getattr(self, f'help_{topic.lower()}')()
 
     def help_types(self):
         return 'types'

@@ -68,11 +68,16 @@ class TestExportTask(CopyTaskTest):
         shell.conn.metadata.partitioner = 'Murmur3Partitioner'
         # token range for a cluster of 4 nodes with replication factor 3
         shell.get_ring.return_value = {
-            Murmur3Token(-9223372036854775808): self.hosts[0:3],
+            Murmur3Token(-9223372036854775808): self.hosts[:3],
             Murmur3Token(-4611686018427387904): self.hosts[1:4],
             Murmur3Token(0): [self.hosts[2], self.hosts[3], self.hosts[0]],
-            Murmur3Token(4611686018427387904): [self.hosts[3], self.hosts[0], self.hosts[1]]
+            Murmur3Token(4611686018427387904): [
+                self.hosts[3],
+                self.hosts[0],
+                self.hosts[1],
+            ],
         }
+
         # merge override options with standard options
         overridden_opts = dict(self.opts)
         for k,v in opts.items():

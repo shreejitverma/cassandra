@@ -27,8 +27,7 @@ class WinPty(object):
 
         def _read_next_char(stdin, queue):
             while True:
-                char = stdin.read(1)  # potentially blocking read
-                if char:
+                if char := stdin.read(1):
                     queue.put(char)
                 else:
                     break
@@ -44,7 +43,7 @@ class WinPty(object):
             while count < blksize or blksize == -1:
                 next = self._q.get(block=timeout is not None, timeout=timeout)
                 buf.write(next)
-                count = count + 1
+                count += 1
         except Empty:
             pass
         return buf.getvalue()

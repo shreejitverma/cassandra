@@ -145,7 +145,9 @@ class SendingChannel(object):
                     msg = self.pending_messages.get()
                     self.pipe.send(msg)
                 except Exception as e:
-                    printmsg('%s: %s' % (e.__class__.__name__, e.message if hasattr(e, 'message') else str(e)))
+                    printmsg(
+                        f"{e.__class__.__name__}: {e.message if hasattr(e, 'message') else str(e)}"
+                    )
 
         feeding_thread = threading.Thread(target=feed)
         feeding_thread.setDaemon(True)
@@ -285,21 +287,25 @@ class CopyTask(object):
         configs = configparser.RawConfigParser()
         configs.readfp(open(config_file))
 
-        ret = dict()
-        config_sections = list(['copy', 'copy-%s' % (direction,),
-                                'copy:%s.%s' % (self.ks, self.table),
-                                'copy-%s:%s.%s' % (direction, self.ks, self.table)])
+        ret = {}
+        config_sections = [
+            'copy',
+            f'copy-{direction}',
+            f'copy:{self.ks}.{self.table}',
+            f'copy-{direction}:{self.ks}.{self.table}',
+        ]
+
 
         for section in config_sections:
             if configs.has_section(section):
                 options = dict(configs.items(section))
-                self.printmsg("Reading options from %s:[%s]: %s" % (config_file, section, options))
-                ret.update(options)
+                self.printmsg(f"Reading options from {config_file}:[{section}]: {options}")
+                ret |= options
 
         # Update this last so the command line options take precedence over the configuration file options
         if opts:
-            self.printmsg("Reading options from the command line: %s" % (opts,))
-            ret.update(opts)
+            self.printmsg(f"Reading options from the command line: {opts}")
+            ret |= opts
 
         if self.shell.debug:  # this is important for testing, do not remove
             self.printmsg("Using options: '%s'" % (ret,))
@@ -324,8 +330,7 @@ class CopyTask(object):
         shell = self.shell
         opts = self.clean_options(self.maybe_read_config_file(opts, direction))
 
-        dialect_options = dict()
-        dialect_options['quotechar'] = ensure_str(opts.pop('quote', '"'))
+        dialect_options = {'quotechar': ensure_str(opts.pop('quote', '"'))}
         dialect_options['escapechar'] = ensure_str(opts.pop('escape', '\\'))
         dialect_options['delimiter'] = ensure_str(opts.pop('delimiter', ','))
         if dialect_options['quotechar'] == dialect_options['escapechar']:
@@ -334,9 +339,8 @@ class CopyTask(object):
         else:
             dialect_options['doublequote'] = False
 
-        copy_options = dict()
-        copy_options['nullval'] = ensure_str(opts.pop('null', ''))
-        copy_options['header'] = bool(opts.pop('header', '').lower() == 'true')
+        copy_options = {'nullval': ensure_str(opts.pop('null', ''))}
+        copy_options['header'] = opts.pop('header', '').lower() == 'true'
         copy_options['encoding'] = opts.pop('encoding', 'utf8')
         copy_options['maxrequests'] = int(opts.pop('maxrequests', 6))
         copy_options['pagesize'] = int(opts.pop('pagesize', 1000))
@@ -366,10 +370,16 @@ class CopyTask(object):
         copy_options['skipcols'] = opts.pop('skipcols', '')
         copy_options['maxparseerrors'] = int(opts.pop('maxparseerrors', '-1'))
         copy_options['maxinserterrors'] = int(opts.pop('maxinserterrors', '1000'))
-        copy_options['errfile'] = safe_normpath(opts.pop('errfile', 'import_%s_%s.err' % (self.ks, self.table,)))
+        copy_options['errfile'] = safe_normpath(
+            opts.pop('errfile', f'import_{self.ks}_{self.table}.err')
+        )
+
         copy_options['ratefile'] = safe_normpath(opts.pop('ratefile', ''))
         copy_options['maxoutputsize'] = int(opts.pop('maxoutputsize', '-1'))
-        copy_options['preparedstatements'] = bool(opts.pop('preparedstatements', 'true').lower() == 'true')
+        copy_options['preparedstatements'] = (
+            opts.pop('preparedstatements', 'true').lower() == 'true'
+        )
+
         copy_options['ttl'] = int(opts.pop('ttl', -1))
 
         # Hidden properties, they do not appear in the documentation but can be set in config files
@@ -396,7 +406,7 @@ class CopyTask(object):
         """
         bool_styles = copy_options['boolstyle']
         if len(bool_styles) != 2 or bool_styles[0] == bool_styles[1] or not bool_styles[0] or not bool_styles[1]:
-            raise ValueError("Invalid boolean styles %s" % copy_options['boolstyle'])
+            raise ValueError(f"Invalid boolean styles {bool_styles}")
 
     @staticmethod
     def get_num_processes(cap):
@@ -436,7 +446,7 @@ class CopyTask(object):
         if len(desc) > 1:
             words = ', '.join(desc) + ', and ' + words
         elif len(desc) == 1:
-            words = desc[0] + ' and ' + words
+            words = f'{desc[0]} and {words}'
         return words
 
     @staticmethod
@@ -446,7 +456,7 @@ class CopyTask(object):
         Possible enhancement: introduce a regex like syntax (^) to allow users
         to specify all columns except a few.
         """
-        return shell.get_column_names(ks, table) if not columns else columns
+        return columns or shell.get_column_names(ks, table)
 
     def close(self):
         self.stop_processes()
@@ -466,7 +476,7 @@ class CopyTask(object):
             os.system("strace -vvvv -c -o strace.{pid}.out -e trace=all -p {pid}&".format(pid=pid))
 
     def start_processes(self):
-        for i, process in enumerate(self.processes):
+        for process in self.processes:
             process.start()
             self.trace_process(process.pid)
 
@@ -511,7 +521,7 @@ class CopyTask(object):
 
         for c in self.columns:
             if c not in self.table_meta.columns:
-                shell.printerr('Invalid column name %s' % (c,))
+                shell.printerr(f'Invalid column name {c}')
                 return False
 
         return True
@@ -548,7 +558,10 @@ class ExportWriter(object):
                 self.write = self._write_with_split
                 self.num_written = 0
             else:
-                shell.printerr("WARNING: maxoutputsize {} ignored when writing to STDOUT".format(self.max_output_size))
+                shell.printerr(
+                    f"WARNING: maxoutputsize {self.max_output_size} ignored when writing to STDOUT"
+                )
+
                 self.write = self._write_without_split
         else:
             self.write = self._write_without_split
@@ -580,14 +593,13 @@ class ExportWriter(object):
 
         if self.fname is None:
             return CsvDest(output=sys.stdout, close=False)
-        else:
-            try:
-                ret = CsvDest(output=open(source_name, 'w'), close=True)
-                self.num_files += 1
-                return ret
-            except IOError as e:
-                self.shell.printerr("Can't open %r for writing: %s" % (source_name, e))
-                return None
+        try:
+            ret = CsvDest(output=open(source_name, 'w'), close=True)
+            self.num_files += 1
+            return ret
+        except IOError as e:
+            self.shell.printerr("Can't open %r for writing: %s" % (source_name, e))
+            return None
 
     def _close_current_dest(self):
         if self.current_dest and self.current_dest.close:
@@ -609,7 +621,7 @@ class ExportWriter(object):
         if (self.num_written + num) > self.max_output_size:
             num_remaining = self.max_output_size - self.num_written
             last_switch = 0
-            for i, row in enumerate([_f for _f in data.split(os.linesep) if _f]):
+            for i, row in enumerate(_f for _f in data.split(os.linesep) if _f):
                 if i == num_remaining:
                     self._next_dest()
                     last_switch = i
@@ -642,7 +654,10 @@ class ExportTask(CopyTask):
         shell = self.shell
 
         if self.options.unrecognized:
-            shell.printerr('Unrecognized COPY TO options: %s' % ', '.join(list(self.options.unrecognized.keys())))
+            shell.printerr(
+                f"Unrecognized COPY TO options: {', '.join(list(self.options.unrecognized.keys()))}"
+            )
+
             return
 
         if not self.validate_columns():
@@ -716,9 +731,12 @@ class ExportTask(CopyTask):
         def make_range_data(replicas=None):
             hosts = []
             if replicas:
-                for r in replicas:
-                    if r.is_up is not False and r.datacenter == local_dc:
-                        hosts.append(r.address)
+                hosts.extend(
+                    r.address
+                    for r in replicas
+                    if r.is_up is not False and r.datacenter == local_dc
+                )
+
             if not hosts:
                 hosts.append(hostname)  # fallback to default host if no replicas in current dc
             return {'hosts': tuple(hosts), 'attempts': 0, 'rows': 0, 'workerno': -1}
@@ -947,7 +965,7 @@ class FilesReader(object):
             return []
 
         rows = []
-        for i in range(min(max_rows, self.chunk_size)):
+        for _ in range(min(max_rows, self.chunk_size)):
             try:
                 row = next(self.current_source)
                 self.num_read += 1
@@ -985,7 +1003,7 @@ class PipeReader(object):
 
     def read_rows(self, max_rows):
         rows = []
-        for i in range(min(max_rows, self.chunk_size)):
+        for _ in range(min(max_rows, self.chunk_size)):
             row = self.inpipe.recv()
             if row is None:
                 self.exhausted = True
@@ -1030,7 +1048,7 @@ class ImportTaskError(object):
     def __init__(self, name, msg, rows=None, attempts=1, final=True):
         self.name = name
         self.msg = msg
-        self.rows = rows if rows else []
+        self.rows = rows or []
         self.attempts = attempts
         self.final = final
 
@@ -1096,15 +1114,15 @@ class ImportErrorHandler(object):
             self.add_failed_rows(err.rows)
             shell.printerr("Failed to import %d rows: %s - %s,  given up without retries"
                            % (len(err.rows), err.name, err.msg))
+        elif err.final:
+            self.insert_errors += len(err.rows)
+            self.add_failed_rows(err.rows)
+            shell.printerr("Failed to import %d rows: %s - %s,  given up after %d attempts"
+                           % (len(err.rows), err.name, err.msg, err.attempts))
+
         else:
-            if not err.final:
-                shell.printerr("Failed to import %d rows: %s - %s,  will retry later, attempt %d of %d"
-                               % (len(err.rows), err.name, err.msg, err.attempts, self.max_attempts))
-            else:
-                self.insert_errors += len(err.rows)
-                self.add_failed_rows(err.rows)
-                shell.printerr("Failed to import %d rows: %s - %s,  given up after %d attempts"
-                               % (len(err.rows), err.name, err.msg, err.attempts))
+            shell.printerr("Failed to import %d rows: %s - %s,  will retry later, attempt %d of %d"
+                           % (len(err.rows), err.name, err.msg, err.attempts, self.max_attempts))
 
 
 class ImportTask(CopyTask):
@@ -1151,7 +1169,10 @@ class ImportTask(CopyTask):
         shell = self.shell
 
         if self.options.unrecognized:
-            shell.printerr('Unrecognized COPY FROM options: %s' % ', '.join(list(self.options.unrecognized.keys())))
+            shell.printerr(
+                f"Unrecognized COPY FROM options: {', '.join(list(self.options.unrecognized.keys()))}"
+            )
+
             return
 
         if not self.validate_columns():
@@ -1225,7 +1246,10 @@ class ImportTask(CopyTask):
                     last_recv_num_records = self.receive_meter.total_records
                     last_recv_time = time.time()
                 elif (time.time() - last_recv_time) > child_timeout:
-                    self.shell.printerr("No records inserted in {} seconds, aborting".format(child_timeout))
+                    self.shell.printerr(
+                        f"No records inserted in {child_timeout} seconds, aborting"
+                    )
+
                     break
 
             if self.error_handler.max_exceeded() or not self.all_processes_running():
@@ -1237,8 +1261,10 @@ class ImportTask(CopyTask):
                                  self.error_handler.err_file))
 
         if not self.all_processes_running():
-            self.shell.printerr("{} child process(es) died unexpectedly, aborting"
-                                .format(self.num_processes - self.num_live_processes()))
+            self.shell.printerr(
+                f"{self.num_processes - self.num_live_processes()} child process(es) died unexpectedly, aborting"
+            )
+
         else:
             if self.error_handler.max_exceeded():
                 self.processes[-1].terminate()  # kill the feeder
@@ -1277,7 +1303,7 @@ class ImportTask(CopyTask):
                 elif isinstance(result, FeedingProcessResult):
                     self.feeding_result = result
                 else:
-                    raise ValueError("Unexpected result: %s" % (result,))
+                    raise ValueError(f"Unexpected result: {result}")
         finally:
             self.receive_meter.increment(aggregate_result.imported)
 
@@ -1357,8 +1383,7 @@ class FeedingProcess(mp.Process):
                         self.send_meter.maybe_update(sleep=False)
                         continue
 
-                    rows = reader.read_rows(max_rows)
-                    if rows:
+                    if rows := reader.read_rows(max_rows):
                         sent += self.send_chunk(ch, rows)
                 except Exception as exc:
                     self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
@@ -1512,8 +1537,7 @@ class ExpBackoffRetryPolicy(RetryPolicy):
         if retry_num >= self.max_attempts:
             return -1
 
-        delay = randint(0, pow(2, retry_num + 1) - 1)
-        return delay
+        return randint(0, pow(2, retry_num + 1) - 1)
 
 
 class ExportSession(object):
@@ -1570,8 +1594,8 @@ class ExportProcess(ChildProcess):
         self.nullval = options.copy['nullval']
         self.max_requests = options.copy['maxrequests']
 
-        self.hosts_to_sessions = dict()
-        self.formatters = dict()
+        self.hosts_to_sessions = {}
+        self.formatters = {}
         self.options = options
 
     def run(self):
@@ -1610,7 +1634,7 @@ class ExportProcess(ChildProcess):
         if isinstance(err, str):
             msg = err
         elif isinstance(err, BaseException):
-            msg = "%s - %s" % (err.__class__.__name__, err)
+            msg = f"{err.__class__.__name__} - {err}"
             if print_traceback and sys.exc_info()[1] == err:
                 traceback.print_exc()
         else:
@@ -1630,8 +1654,7 @@ class ExportProcess(ChildProcess):
         Begin querying a range by executing an async query that
         will later on invoke the callbacks attached in attach_callbacks.
         """
-        session = self.get_session(info['hosts'], token_range)
-        if session:
+        if session := self.get_session(info['hosts'], token_range):
             metadata = session.cluster.metadata.keyspaces[self.ks].tables[self.table]
             query = self.prepare_query(metadata.partition_key, token_range, info['attempts'])
             future = session.execute_async(query)
@@ -1663,11 +1686,14 @@ class ExportProcess(ChildProcess):
 
             if ret:
                 if errors:
-                    printdebugmsg("Warning: failed to connect to some replicas: %s" % (errors,))
+                    printdebugmsg(f"Warning: failed to connect to some replicas: {errors}")
                 return ret
 
-        self.report_error("Failed to connect to all replicas %s for %s, errors: %s" % (hosts, token_range, errors),
-                          token_range)
+        self.report_error(
+            f"Failed to connect to all replicas {hosts} for {token_range}, errors: {errors}",
+            token_range,
+        )
+
         return None
 
     def connect(self, host):
@@ -1780,9 +1806,12 @@ class ExportProcess(ChildProcess):
 
         if 'failing_range' in self.test_failures:
             failing_range = self.test_failures['failing_range']
-            if start_token >= failing_range['start'] and end_token <= failing_range['end']:
-                if attempts < failing_range['num_failures']:
-                    return 'SELECT * from bad_table'
+            if (
+                start_token >= failing_range['start']
+                and end_token <= failing_range['end']
+                and attempts < failing_range['num_failures']
+            ):
+                return 'SELECT * from bad_table'
 
         if 'exit_range' in self.test_failures:
             exit_range = self.test_failures['exit_range']
@@ -1798,15 +1827,16 @@ class ExportProcess(ChildProcess):
         pk_cols = ", ".join(protect_names(col.name for col in partition_key))
         columnlist = ', '.join(protect_names(self.columns))
         start_token, end_token = token_range
-        query = 'SELECT %s FROM %s.%s' % (columnlist, protect_name(self.ks), protect_name(self.table))
+        query = f'SELECT {columnlist} FROM {protect_name(self.ks)}.{protect_name(self.table)}'
+
         if start_token is not None or end_token is not None:
             query += ' WHERE'
         if start_token is not None:
-            query += ' token(%s) > %s' % (pk_cols, start_token)
+            query += f' token({pk_cols}) > {start_token}'
         if start_token is not None and end_token is not None:
             query += ' AND'
         if end_token is not None:
-            query += ' token(%s) <= %s' % (pk_cols, end_token)
+            query += f' token({pk_cols}) <= {end_token}'
         return query
 
 
@@ -1827,8 +1857,7 @@ class ImmutableDict(frozenset):
     iteritems = frozenset.__iter__
 
     def items(self):
-        for k, v in self.iteritems():
-            yield k, v
+        yield from self.iteritems()
 
 
 class ImportConversion(object):
@@ -1885,10 +1914,12 @@ class ImportConversion(object):
         route the update query to the correct replicas. As far as I understood this is the easiest
         way to find out the types of the partition columns, we will never use this prepared statement
         """
-        where_clause = ' AND '.join(['%s = ?' % (protect_name(c.name)) for c in table_meta.partition_key])
-        select_query = 'SELECT * FROM %s.%s WHERE %s' % (protect_name(parent.ks),
-                                                         protect_name(parent.table),
-                                                         where_clause)
+        where_clause = ' AND '.join(
+            [f'{protect_name(c.name)} = ?' for c in table_meta.partition_key]
+        )
+
+        select_query = f'SELECT * FROM {protect_name(parent.ks)}.{protect_name(parent.table)} WHERE {where_clause}'
+
         return parent.session.prepare(ensure_str(select_query))
 
     @staticmethod
@@ -1931,7 +1962,7 @@ class ImportConversion(object):
             return UUID(v)
 
         def convert_bool(v, **_):
-            return True if v.lower() == ensure_str(self.boolean_styles[0]).lower() else False
+            return v.lower() == ensure_str(self.boolean_styles[0]).lower()
 
         def get_convert_integer_fcn(adapter=int):
             """
@@ -1971,10 +2002,10 @@ class ImportConversion(object):
             by enforcing '{' and '}' in a minor release.
             """
             def is_open_paren(cc):
-                return cc == '{' or cc == '[' or cc == '('
+                return cc in ['{', '[', '(']
 
             def is_close_paren(cc):
-                return cc == '}' or cc == ']' or cc == ')'
+                return cc in ['}', ']', ')']
 
             def paren_match(c1, c2):
                 return (c1 == '{' and c2 == '}') or (c1 == '[' and c2 == ']') or (c1 == '(' and c2 == ')')
@@ -2040,10 +2071,16 @@ class ImportConversion(object):
                                     0, 1, -1))  # day of week, day of year, dst-flag
 
             # convert sub-seconds (a number between 1 and 6 digits) to milliseconds
-            milliseconds = 0 if not m.group(7) else int(m.group(7)) * pow(10, 3 - len(m.group(7)))
+            milliseconds = (
+                int(m.group(7)) * pow(10, 3 - len(m.group(7))) if m.group(7) else 0
+            )
+
 
             if m.group(8):
-                offset = (int(m.group(9)) * 3600 + int(m.group(10)) * 60) * int(m.group(8) + '1')
+                offset = (int(m.group(9)) * 3600 + int(m.group(10)) * 60) * int(
+                    f'{m.group(8)}1'
+                )
+
             else:
                 offset = -time.timezone
 
@@ -2085,8 +2122,8 @@ class ImportConversion(object):
             """
             split_format_str = ensure_str('{%s}')
             sep = ensure_str(':')
-            vals = [v for v in [split(split_format_str % vv, sep=sep) for vv in split(val)]]
-            dict_vals = dict((unprotect(v[0]), v[1]) for v in vals)
+            vals = [split(split_format_str % vv, sep=sep) for vv in split(val)]
+            dict_vals = {unprotect(v[0]): v[1] for v in vals}
             sorted_converted_vals = [(n, convert(t, dict_vals[n]) if n in dict_vals else self.get_null_val())
                                      for n, t in zip(ct.fieldnames, ct.subtypes)]
             ret_type = namedtuple(ct.typename, [v[0] for v in sorted_converted_vals])
@@ -2101,7 +2138,7 @@ class ImportConversion(object):
             elif issubclass(ct, ReversedType):
                 return convert_single_subtype(val, ct=ct)
 
-            printdebugmsg("Unknown type %s (%s) for val %s" % (ct, ct.typename, val))
+            printdebugmsg(f"Unknown type {ct} ({ct.typename}) for val {val}")
             return val
 
         converters = {
@@ -2172,7 +2209,9 @@ class ImportConversion(object):
 
                 if self.debug:
                     traceback.print_exc()
-                raise ParseError("Failed to parse %s : %s" % (v, e.message if hasattr(e, 'message') else str(e)))
+                raise ParseError(
+                    f"Failed to parse {v} : {e.message if hasattr(e, 'message') else str(e)}"
+                )
 
         return [convert(conv, val) for conv, val in zip(converters, row)]
 
@@ -2330,7 +2369,7 @@ class ImportProcess(ChildProcess):
         ChildProcess.__init__(self, params=params, target=self.run)
 
         self.skip_columns = params['skip_columns']
-        self.valid_columns = [c for c in params['valid_columns']]
+        self.valid_columns = list(params['valid_columns'])
         self.skip_column_indexes = [i for i, c in enumerate(self.columns) if c in self.skip_columns]
 
         options = params['options']
@@ -2410,12 +2449,10 @@ class ImportProcess(ChildProcess):
             query = 'UPDATE %s.%s SET %%s WHERE %%s' % (protect_name(self.ks), protect_name(self.table))
             make_statement = self.wrap_make_statement(self.make_counter_batch_statement)
         elif self.use_prepared_statements:
-            query = 'INSERT INTO %s.%s (%s) VALUES (%s)' % (protect_name(self.ks),
-                                                            protect_name(self.table),
-                                                            ', '.join(protect_names(self.valid_columns),),
-                                                            ', '.join(['?' for _ in self.valid_columns]))
+            query = f"INSERT INTO {protect_name(self.ks)}.{protect_name(self.table)} ({', '.join(protect_names(self.valid_columns))}) VALUES ({', '.join(['?' for _ in self.valid_columns])})"
+
             if self.ttl >= 0:
-                query += 'USING TTL %s' % (self.ttl,)
+                query += f'USING TTL {self.ttl}'
             query = self.session.prepare(query)
             query.consistency_level = self.consistency_level
             prepared_statement = query
@@ -2425,7 +2462,7 @@ class ImportProcess(ChildProcess):
                                                              protect_name(self.table),
                                                              ', '.join(protect_names(self.valid_columns),))
             if self.ttl >= 0:
-                query += 'USING TTL %s' % (self.ttl,)
+                query += f'USING TTL {self.ttl}'
             make_statement = self.wrap_make_statement(self.make_non_prepared_batch_statement)
             query = ensure_str(query)
 
@@ -2456,15 +2493,16 @@ class ImportProcess(ChildProcess):
             try:
                 chunk['rows'] = convert_rows(conv, chunk)
                 for replicas, batch in split_into_batches(chunk, conv, tm):
-                    statement = make_statement(query, conv, chunk, batch, replicas)
-                    if statement:
+                    if statement := make_statement(
+                        query, conv, chunk, batch, replicas
+                    ):
                         future = session.execute_async(statement)
                         future.add_callbacks(callback=result_callback, callback_args=(batch, chunk),
                                              errback=err_callback, errback_args=(batch, chunk, replicas))
-                    # do not handle else case, if a statement could not be created, the exception is handled
-                    # in self.wrap_make_statement and the error is reported, if a failure is injected that
-                    # causes the statement to be None, then we should not report the error so that we can test
-                    # the parent process handling missing batches from child processes
+                                # do not handle else case, if a statement could not be created, the exception is handled
+                                # in self.wrap_make_statement and the error is reported, if a failure is injected that
+                                # causes the statement to be None, then we should not report the error so that we can test
+                                # the parent process handling missing batches from child processes
 
             except Exception as exc:
                 self.report_error(exc, chunk, chunk['rows'])
@@ -2474,7 +2512,7 @@ class ImportProcess(ChildProcess):
             try:
                 return inner_make_statement(query, conv, batch, replicas)
             except Exception as exc:
-                print("Failed to make batch statement: {}".format(exc))
+                print(f"Failed to make batch statement: {exc}")
                 self.report_error(exc, chunk, batch['rows'])
                 return None
 
@@ -2567,11 +2605,13 @@ class ImportProcess(ChildProcess):
         """
         if 'failing_batch' in self.test_failures:
             failing_batch = self.test_failures['failing_batch']
-            if failing_batch['id'] == batch['id']:
-                if batch['attempts'] < failing_batch['failures']:
-                    statement = SimpleStatement("INSERT INTO badtable (a, b) VALUES (1, 2)",
-                                                consistency_level=self.consistency_level)
-                    return statement, True  # use this statement, which will cause an error
+            if (
+                failing_batch['id'] == batch['id']
+                and batch['attempts'] < failing_batch['failures']
+            ):
+                statement = SimpleStatement("INSERT INTO badtable (a, b) VALUES (1, 2)",
+                                            consistency_level=self.consistency_level)
+                return statement, True  # use this statement, which will cause an error
 
         if 'exit_batch' in self.test_failures:
             exit_batch = self.test_failures['exit_batch']

@@ -46,7 +46,10 @@ class SaferScannerBase(re.Scanner):
         if sub.pattern.groupdict:
             raise ValueError("Named captures not allowed in SaferScanner lexicon")
         if sub.pattern.flags ^ flags:
-            raise ValueError("RE flag setting not allowed in SaferScanner lexicon (%s)" % (bin(sub.pattern.flags),))
+            raise ValueError(
+                f"RE flag setting not allowed in SaferScanner lexicon ({bin(sub.pattern.flags)})"
+            )
+
         return re.sre_parse.SubPattern(sub.pattern, scrubbedsub)
 
 
@@ -54,13 +57,18 @@ class Py2SaferScanner(SaferScannerBase):
 
     def __init__(self, lexicon, flags=0):
         self.lexicon = lexicon
-        p = []
         s = re.sre_parse.Pattern()
         s.flags = flags
-        for phrase, action in lexicon:
-            p.append(re.sre_parse.SubPattern(s, [
-                (SUBPATTERN, (len(p) + 1, self.subpat(phrase, flags))),
-            ]))
+        p = [
+            re.sre_parse.SubPattern(
+                s,
+                [
+                    (SUBPATTERN, (len(p) + 1, self.subpat(phrase, flags))),
+                ],
+            )
+            for phrase, action in lexicon
+        ]
+
         s.groups = len(p) + 1
         p = re.sre_parse.SubPattern(s, [(BRANCH, (None, p))])
         self.p = p

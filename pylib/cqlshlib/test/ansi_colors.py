@@ -82,7 +82,7 @@ class ColoredChar(object):
     def ansi_color(self):
         clr = str(30 + (0o7 & self._colorcode))
         if self._colorcode & 0o10:
-            clr = '1;' + clr
+            clr = f'1;{clr}'
         return clr
 
     def __str__(self):
@@ -90,7 +90,7 @@ class ColoredChar(object):
     __repr__ = __str__
 
     def colored_version(self):
-        return '%s0;%sm%s%s0m' % (ansi_CSI, self.ansi_color(), self.c, ansi_CSI)
+        return f'{ansi_CSI}0;{self.ansi_color()}m{self.c}{ansi_CSI}0m'
 
     def colored_repr(self):
         if self.c == "'":
@@ -99,7 +99,7 @@ class ColoredChar(object):
             crepr = self.c
         else:
             crepr = repr(self.c)[1:-1]
-        return '%s0;%sm%s%s0m' % (ansi_CSI, self.ansi_color(), crepr, ansi_CSI)
+        return f'{ansi_CSI}0;{self.ansi_color()}m{crepr}{ansi_CSI}0m'
 
     def colortag(self):
         return lookup_letter_from_code(self._colorcode)
@@ -161,9 +161,6 @@ class ColoredText(object):
                 curclr |= LIGHT
             elif 30 <= a <= 37:
                 curclr = (curclr & LIGHT) | (a - 30)
-            else:
-                # not supported renditions here; ignore for now
-                pass
         return curclr
 
     def __repr__(self):

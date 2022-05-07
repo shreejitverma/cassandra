@@ -38,9 +38,7 @@ def colorme(bval, colormap, colorkey):
 
 
 def get_str(val):
-    if isinstance(val, FormattedValue):
-        return val.strval
-    return val
+    return val.strval if isinstance(val, FormattedValue) else val
 
 
 class FormattedValue(object):
@@ -60,10 +58,7 @@ class FormattedValue(object):
         return len(self.strval)
 
     def _pad(self, width, fill=' '):
-        if width > self.displaywidth:
-            return fill * (width - self.displaywidth)
-        else:
-            return ''
+        return fill * (width - self.displaywidth) if width > self.displaywidth else ''
 
     def ljust(self, width, fill=' ', color=False):
         """
@@ -127,4 +122,4 @@ COLUMN_NAME_COLORS = defaultdict(lambda: MAGENTA,
                                  reset=ANSI_RESET,
                                  )
 
-NO_COLOR_MAP = dict()
+NO_COLOR_MAP = {}

@@ -18,8 +18,30 @@ from cassandra.metadata import maybe_escape_name
 from cqlshlib import helptopics
 from cqlshlib.cqlhandling import CqlParsingRuleSet, Hint
 
-simple_cql_types = set(('ascii', 'bigint', 'blob', 'boolean', 'counter', 'date', 'decimal', 'double', 'duration', 'float',
-                        'inet', 'int', 'smallint', 'text', 'time', 'timestamp', 'timeuuid', 'tinyint', 'uuid', 'varchar', 'varint'))
+simple_cql_types = {
+    'ascii',
+    'bigint',
+    'blob',
+    'boolean',
+    'counter',
+    'date',
+    'decimal',
+    'double',
+    'duration',
+    'float',
+    'inet',
+    'int',
+    'smallint',
+    'text',
+    'time',
+    'timestamp',
+    'timeuuid',
+    'tinyint',
+    'uuid',
+    'varchar',
+    'varint',
+}
+
 simple_cql_types.difference_update(('set', 'map', 'list'))
 
 cqldocs = helptopics.CQL3HelpTopics()
@@ -31,7 +53,7 @@ class UnexpectedTableStructure(UserWarning):
         self.msg = msg
 
     def __str__(self):
-        return 'Unexpected table structure; may not translate correctly to CQL. ' + self.msg
+        return f'Unexpected table structure; may not translate correctly to CQL. {self.msg}'
 
 
 SYSTEM_KEYSPACES = ('system', 'system_schema', 'system_traces', 'system_auth', 'system_distributed', 'system_views', 'system_virtual_schema')
@@ -120,9 +142,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
 
     @classmethod
     def escape_name(cls, name):
-        if name is None:
-            return 'NULL'
-        return "'%s'" % name.replace("'", "''")
+        return 'NULL' if name is None else "'%s'" % name.replace("'", "''")
 
     @staticmethod
     def dequote_name(name):
@@ -449,10 +469,10 @@ def ks_prop_val_mapkey_completer(ctxt, cass):
             break
     else:
         return ["'class'"]
-    if repclass == 'SimpleStrategy':
-        opts = set(('replication_factor',))
-    elif repclass == 'NetworkTopologyStrategy':
+    if repclass == 'NetworkTopologyStrategy':
         return [Hint('<dc_name>')]
+    elif repclass == 'SimpleStrategy':
+        opts = {'replication_factor'}
     return list(map(escape_value, opts.difference(keysseen)))
 
 
@@ -478,9 +498,8 @@ def ks_prop_val_mapender_completer(ctxt, cass):
             break
     else:
         return [',']
-    if repclass == 'SimpleStrategy':
-        if 'replication_factor' not in keysseen:
-            return [',']
+    if repclass == 'SimpleStrategy' and 'replication_factor' not in keysseen:
+        return [',']
     if repclass == 'NetworkTopologyStrategy' and len(keysseen) == 1:
         return [',']
     return ['}']
@@ -601,7 +620,7 @@ def alterable_ks_name_completer(ctxt, cass):
 
 
 def cf_ks_name_completer(ctxt, cass):
-    return [maybe_escape_name(ks) + '.' for ks in cass.get_keyspace_names()]
+    return [f'{maybe_escape_name(ks)}.' for ks in cass.get_keyspace_names()]
 
 
 completer_for('columnFamilyName', 'ksname')(cf_ks_name_completer)
@@ -846,12 +865,12 @@ def select_relation_lhs_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
     filterable = set()
     already_filtered_on = list(map(dequote_name, ctxt.get_binding('rel_lhs', ())))
-    for num in range(0, len(layout.partition_key)):
+    for num in range(len(layout.partition_key)):
         if num == 0 or layout.partition_key[num - 1].name in already_filtered_on:
             filterable.add(layout.partition_key[num].name)
         else:
             break
-    for num in range(0, len(layout.clustering_key)):
+    for num in range(len(layout.clustering_key)):
         if num == 0 or layout.clustering_key[num - 1].name in already_filtered_on:
             filterable.add(layout.clustering_key[num].name)
         else:
@@ -881,10 +900,15 @@ syntax_rules += r'''
 def regular_column_names(table_meta):
     if not table_meta or not table_meta.columns:
         return []
-    regular_columns = list(set(table_meta.columns.keys())
-                           - set([key.name for key in table_meta.partition_key])
-                           - set([key.name for key in table_meta.clustering_key]))
-    return regular_columns
+    return list(
+        (
+            (
+                set(table_meta.columns.keys())
+                - {key.name for key in table_meta.partition_key}
+            )
+            - {key.name for key in table_meta.clustering_key}
+        )
+    )
 
 
 @completer_for('insertStatement', 'colname')
@@ -915,8 +939,7 @@ def insert_newval_completer(ctxt, cass):
     if coltype == 'boolean':
         return ['true', 'false']
 
-    return [Hint('<value for %s (%s)>' % (maybe_escape_name(curcol),
-                                          coltype))]
+    return [Hint(f'<value for {maybe_escape_name(curcol)} ({coltype})>')]
 
 
 @completer_for('insertStatement', 'valcomma')
@@ -989,7 +1012,7 @@ def update_countername_completer(ctxt, cass):
         return ["{"]
     if coltype == 'list':
         return ["["]
-    return [Hint('<term (%s)>' % coltype)]
+    return [Hint(f'<term ({coltype})>')]
 
 
 @completer_for('assignment', 'counterop')
@@ -1198,10 +1221,9 @@ syntax_rules += r'''
 
 @completer_for('cfamOrdering', 'ordercol')
 def create_cf_clustering_order_colname_completer(ctxt, cass):
-    colnames = list(map(dequote_name, ctxt.get_binding('newcolname', ())))
     # Definitely some of these aren't valid for ordering, but I'm not sure
     # precisely which are. This is good enough for now
-    return colnames
+    return list(map(dequote_name, ctxt.get_binding('newcolname', ())))
 
 
 @completer_for('createColumnFamilyStatement', 'wat')
@@ -1364,7 +1386,7 @@ syntax_rules += r'''
 
 @completer_for('indexName', 'ksname')
 def idx_ks_name_completer(ctxt, cass):
-    return [maybe_escape_name(ks) + '.' for ks in cass.get_keyspace_names()]
+    return [f'{maybe_escape_name(ks)}.' for ks in cass.get_keyspace_names()]
 
 
 @completer_for('indexName', 'dot')
@@ -1549,8 +1571,14 @@ syntax_rules += r'''
 
 @completer_for('permissionExpr', 'newpermission')
 def permission_completer(ctxt, _):
-    new_permissions = set([permission.upper() for permission in ctxt.get_binding('newpermission')])
-    all_permissions = set([permission.arg for permission in ctxt.ruleset['permission'].arg])
+    new_permissions = {
+        permission.upper() for permission in ctxt.get_binding('newpermission')
+    }
+
+    all_permissions = {
+        permission.arg for permission in ctxt.ruleset['permission'].arg
+    }
+
     suggestions = all_permissions - new_permissions
     if len(suggestions) == 0:
         return [Hint('No more permissions here.')]
@@ -1560,9 +1588,7 @@ def permission_completer(ctxt, _):
 @completer_for('username', 'name')
 def username_name_completer(ctxt, cass):
     def maybe_quote(name):
-        if CqlRuleSet.is_valid_cql3_name(name):
-            return name
-        return "'%s'" % name
+        return name if CqlRuleSet.is_valid_cql3_name(name) else "'%s'" % name
 
     # disable completion for CREATE USER.
     if ctxt.matched[0][1].upper() == 'CREATE':
@@ -1575,9 +1601,7 @@ def username_name_completer(ctxt, cass):
 @completer_for('rolename', 'role')
 def rolename_completer(ctxt, cass):
     def maybe_quote(name):
-        if CqlRuleSet.is_valid_cql3_name(name):
-            return name
-        return "'%s'" % name
+        return name if CqlRuleSet.is_valid_cql3_name(name) else "'%s'" % name
 
     # disable completion for CREATE ROLE.
     if ctxt.matched[0][1].upper() == 'CREATE':

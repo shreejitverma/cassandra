@@ -24,13 +24,66 @@ from cqlshlib import pylexotron, util
 
 Hint = pylexotron.Hint
 
-cql_keywords_reserved = set((
-    'add', 'allow', 'alter', 'and', 'apply', 'asc', 'authorize', 'batch', 'begin', 'by', 'columnfamily', 'create',
-    'delete', 'desc', 'describe', 'drop', 'entries', 'execute', 'from', 'full', 'grant', 'if', 'in', 'index',
-    'infinity', 'insert', 'into', 'is', 'keyspace', 'limit', 'materialized', 'modify', 'nan', 'norecursive', 'not',
-    'null', 'of', 'on', 'or', 'order', 'primary', 'rename', 'revoke', 'schema', 'select', 'set', 'table', 'to', 'token',
-    'truncate', 'unlogged', 'update', 'use', 'using', 'view', 'where', 'with'
-))
+cql_keywords_reserved = {
+    'add',
+    'allow',
+    'alter',
+    'and',
+    'apply',
+    'asc',
+    'authorize',
+    'batch',
+    'begin',
+    'by',
+    'columnfamily',
+    'create',
+    'delete',
+    'desc',
+    'describe',
+    'drop',
+    'entries',
+    'execute',
+    'from',
+    'full',
+    'grant',
+    'if',
+    'in',
+    'index',
+    'infinity',
+    'insert',
+    'into',
+    'is',
+    'keyspace',
+    'limit',
+    'materialized',
+    'modify',
+    'nan',
+    'norecursive',
+    'not',
+    'null',
+    'of',
+    'on',
+    'or',
+    'order',
+    'primary',
+    'rename',
+    'revoke',
+    'schema',
+    'select',
+    'set',
+    'table',
+    'to',
+    'token',
+    'truncate',
+    'unlogged',
+    'update',
+    'use',
+    'using',
+    'view',
+    'where',
+    'with',
+}
+
 """
 Set of reserved keywords in CQL.
 
@@ -72,7 +125,12 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         problems with completion, see CASSANDRA-10415
         """
         cassandra.metadata.cql_keywords_reserved = cql_keywords_reserved
-        syntax = '<reserved_identifier> ::= /(' + '|'.join(r'\b{}\b'.format(k) for k in cql_keywords_reserved) + ')/ ;'
+        syntax = (
+            '<reserved_identifier> ::= /('
+            + '|'.join(f'\\b{k}\\b' for k in cql_keywords_reserved)
+            + ')/ ;'
+        )
+
         self.append_rules(syntax)
 
     def completer_for(self, rulename, symname):
@@ -122,11 +180,10 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                 term_on_nl = False
                 output.extend(curstmt)
                 curstmt = []
-            else:
-                if len(curstmt) == 1:
-                    # first token in statement; command word
-                    cmd = t[1].lower()
-                    term_on_nl = bool(cmd in self.commands_end_with_newline)
+            elif len(curstmt) == 1:
+                # first token in statement; command word
+                cmd = t[1].lower()
+                term_on_nl = cmd in self.commands_end_with_newline
 
         output.extend(curstmt)
         return output
@@ -227,7 +284,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                         and prefix is None \
                         and not text[-1].isspace() \
                         and not c[0].isspace():
-                    c = ' ' + c
+                    c = f' {c}'
                 newcandidates.append(c)
             candidates = newcandidates
 

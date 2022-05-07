@@ -67,7 +67,7 @@ def create_keyspace(cursor):
         CREATE KEYSPACE %s WITH replication =
             {'class': 'SimpleStrategy', 'replication_factor': 1};
     ''' % qksname)
-    cursor.execute('USE %s;' % qksname)
+    cursor.execute(f'USE {qksname};')
     TEST_KEYSPACES_CREATED.append(ksname)
     return ksname
 
@@ -101,7 +101,7 @@ def create_db():
 
 def remove_db():
     with cassandra_cursor(ks=None) as c:
-        c.execute('DROP KEYSPACE %s' % quote_name(TEST_KEYSPACES_CREATED.pop(-1)))
+        c.execute(f'DROP KEYSPACE {quote_name(TEST_KEYSPACES_CREATED.pop(-1))}')
 
 
 @contextlib.contextmanager

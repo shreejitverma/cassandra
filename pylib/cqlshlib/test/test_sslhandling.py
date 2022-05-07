@@ -44,7 +44,7 @@ class SslSettingsTest(unittest.TestCase):
         os.environ['SSL_VERSION'] = version
         ssl_ret_val = ssl_settings(self.host, self.config_file)
         assert ssl_ret_val is not None
-        assert ssl_ret_val.get('ssl_version') == getattr(ssl, 'PROTOCOL_%s' % version)
+        assert ssl_ret_val.get('ssl_version') == getattr(ssl, f'PROTOCOL_{version}')
 
     def test_ssl_versions_from_env(self):
         versions = ['TLS', 'TLSv1_1', 'TLSv1_2', 'TLSv1']

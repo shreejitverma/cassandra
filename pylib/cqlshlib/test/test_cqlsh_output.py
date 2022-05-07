@@ -578,7 +578,7 @@ class TestCqlshOutput(BaseTestCase):
             cmd = "USE \"%s\";\n" % get_keyspace().replace('"', '""')
             c.send(cmd)
             output = c.read_to_next_prompt().replace('\r\n', '\n')
-            self.assertTrue(output.endswith('cqlsh:%s> ' % (get_keyspace())))
+            self.assertTrue(output.endswith(f'cqlsh:{get_keyspace()}> '))
 
             c.send('use system;\n')
             output = c.read_to_next_prompt().replace('\r\n', '\n')
@@ -612,7 +612,7 @@ class TestCqlshOutput(BaseTestCase):
 
             # try to actually execute that last keyspace description, with a
             # new keyspace name
-            new_ks_name = 'COPY_OF_' + ks
+            new_ks_name = f'COPY_OF_{ks}'
             copy_desc = desc.replace(ks, new_ks_name)
             statements = split_cql_commands(copy_desc)
             do_drop = True
@@ -621,12 +621,12 @@ class TestCqlshOutput(BaseTestCase):
                 try:
                     for stmt in statements:
                         stmt = self.strip_read_repair_chance(stmt)
-                        cqlshlog.debug('TEST EXEC: %s' % stmt)
+                        cqlshlog.debug(f'TEST EXEC: {stmt}')
                         curs.execute(stmt)
                 finally:
                     curs.execute('use system')
                     if do_drop:
-                        curs.execute('drop keyspace {}'.format(new_ks_name))
+                        curs.execute(f'drop keyspace {new_ks_name}')
 
     def check_describe_keyspace_output(self, output, qksname):
         expected_bits = [r'(?im)^CREATE KEYSPACE %s WITH\b' % re.escape(qksname),
@@ -678,7 +678,7 @@ class TestCqlshOutput(BaseTestCase):
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             for cmdword in ('describe table', 'desc columnfamily'):
                 for semicolon in (';', ''):
-                    output = c.cmd_and_response('%s has_all_types%s' % (cmdword, semicolon))
+                    output = c.cmd_and_response(f'{cmdword} has_all_types{semicolon}')
                     self.assertNoHasColors(output)
                     self.assertSequenceEqual(dedent(output).split('\n'), table_desc3.split('\n'))
 
@@ -699,9 +699,9 @@ class TestCqlshOutput(BaseTestCase):
                     ksnames = []
                     output = c.cmd_and_response(cmdword + semicolon)
                     self.assertNoHasColors(output)
-                    self.assertRegex(output, '(?xs) ^ ( %s )+ $' % output_re)
+                    self.assertRegex(output, f'(?xs) ^ ( {output_re} )+ $')
 
-                    for section in re.finditer('(?xs)' + output_re, output):
+                    for section in re.finditer(f'(?xs){output_re}', output):
                         ksname = section.group('ksname')
                         ksnames.append(ksname)
                         cfnames = section.group('cfnames')
@@ -722,7 +722,7 @@ class TestCqlshOutput(BaseTestCase):
                     self.assertNoHasColors(output)
                     self.assertEqual(output[0], '\n')
                     self.assertEqual(output[-1], '\n')
-                    self.assertNotIn('Keyspace %s' % quote_name(ks), output)
+                    self.assertNotIn(f'Keyspace {quote_name(ks)}', output)
                     self.assertIn('undefined_values_table', output)
 
     def test_describe_cluster_output(self):
@@ -747,22 +747,22 @@ class TestCqlshOutput(BaseTestCase):
 
             # not in a keyspace
             for semicolon in ('', ';'):
-                output = c.cmd_and_response('describe cluster' + semicolon)
+                output = c.cmd_and_response(f'describe cluster{semicolon}')
                 self.assertNoHasColors(output)
-                self.assertRegex(output, output_re + '$')
+                self.assertRegex(output, f'{output_re}$')
 
             c.send('USE %s;\n' % quote_name(get_keyspace()))
             c.read_to_next_prompt()
 
             for semicolon in ('', ';'):
-                output = c.cmd_and_response('describe cluster' + semicolon)
+                output = c.cmd_and_response(f'describe cluster{semicolon}')
                 self.assertNoHasColors(output)
                 self.assertRegex(output, output_re + ringinfo_re + '$')
 
     def test_describe_schema_output(self):
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             for semicolon in ('', ';'):
-                output = c.cmd_and_response('desc full schema' + semicolon)
+                output = c.cmd_and_response(f'desc full schema{semicolon}')
                 self.assertNoHasColors(output)
                 # Since CASSANDRA-7622 'DESC FULL SCHEMA' also shows all VIRTUAL keyspaces
                 self.assertIn('VIRTUAL KEYSPACE system_virtual_schema', output)
@@ -937,4 +937,4 @@ class TestCqlshOutput(BaseTestCase):
         # format is "@ Row 1"
         row_headers = [s for s in output.splitlines() if "@ Row" in s]
         row_ids = [int(s.split(' ')[2]) for s in row_headers]
-        self.assertEqual([i for i in range(1, 21)], row_ids)
+        self.assertEqual(list(range(1, 21)), row_ids)

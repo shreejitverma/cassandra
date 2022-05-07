@@ -289,10 +289,7 @@ def mk_wcswidth(pwcs):
 # otherwise recommended for general use.
 def mk_wcwidth_cjk(ucs):
     # binary search in table of non-spacing characters
-    if bisearch(ucs, ambiguous):
-        return 2
-
-    return mk_wcwidth(ucs)
+    return 2 if bisearch(ucs, ambiguous) else mk_wcwidth(ucs)
 
 
 def mk_wcswidth_cjk(pwcs):

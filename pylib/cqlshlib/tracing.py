@@ -42,7 +42,7 @@ def print_trace(shell, trace):
     """
     rows = make_trace_rows(trace)
     if not rows:
-        shell.printerr("No rows for session %s found." % (trace.trace_id,))
+        shell.printerr(f"No rows for session {trace.trace_id} found.")
         return
     names = ['activity', 'timestamp', 'source', 'source_elapsed', 'client']
 
@@ -64,12 +64,17 @@ def make_trace_rows(trace):
     rows = [[trace.request_type, str(datetime_from_utc_to_local(trace.started_at)), trace.coordinator, 0, trace.client]]
 
     # append main rows (from events table).
-    for event in trace.events:
-        rows.append(["%s [%s]" % (event.description, event.thread_name),
-                     str(datetime_from_utc_to_local(event.datetime)),
-                     event.source,
-                     total_micro_seconds(event.source_elapsed),
-                     trace.client])
+    rows.extend(
+        [
+            f"{event.description} [{event.thread_name}]",
+            str(datetime_from_utc_to_local(event.datetime)),
+            event.source,
+            total_micro_seconds(event.source_elapsed),
+            trace.client,
+        ]
+        for event in trace.events
+    )
+
     # append footer row (from sessions table).
     if trace.duration:
         finished_at = (datetime_from_utc_to_local(trace.started_at) + trace.duration)

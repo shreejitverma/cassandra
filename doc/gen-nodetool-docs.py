@@ -16,6 +16,7 @@
 """
 A script to use nodetool to generate documentation for nodetool
 """
+
 from __future__ import print_function
 
 import os
@@ -31,7 +32,7 @@ if(os.environ.get("SKIP_NODETOOL") == "1"):
 
 nodetool = "../bin/nodetool"
 outdir = "source/tools/nodetool"
-helpfilename = outdir + "/nodetool.txt"
+helpfilename = f"{outdir}/nodetool.txt"
 command_re = re.compile("(    )([_a-z]+)")
 commandRSTContent = ".. _nodetool_{0}:\n\n{0}\n{1}\n\nUsage\n---------\n\n.. include:: {0}.txt\n  :literal:\n\n"
 
@@ -53,22 +54,23 @@ def create_help_file():
 
 # for a given command, create the help file and an RST file to contain it
 def create_rst(command):
-    if command:
-        cmdName = command.group(0).strip()
-        cmdFilename = outdir + "/" + cmdName + ".txt"
-        rstFilename = outdir + "/" + cmdName + ".rst"
-        with open(cmdFilename, "w+b") as cmdFile:
-            proc = Popen([nodetool, "help", cmdName], stdin=PIPE, stdout=PIPE)
-            (out, err) = proc.communicate()
-            cmdFile.write(out)
-        with open(rstFilename, "w+") as rstFile:
-            rstFile.write(commandRSTContent.format(cmdName, '-' * len(cmdName)))
+    if not command:
+        return
+    cmdName = command.group(0).strip()
+    cmdFilename = f"{outdir}/{cmdName}.txt"
+    rstFilename = f"{outdir}/{cmdName}.rst"
+    with open(cmdFilename, "w+b") as cmdFile:
+        proc = Popen([nodetool, "help", cmdName], stdin=PIPE, stdout=PIPE)
+        (out, err) = proc.communicate()
+        cmdFile.write(out)
+    with open(rstFilename, "w+") as rstFile:
+        rstFile.write(commandRSTContent.format(cmdName, '-' * len(cmdName)))
 
 # create base file
 create_help_file()
 
 # create the main usage page
-with open(outdir + "/nodetool.rst", "w+") as output:
+with open(f"{outdir}/nodetool.rst", "w+") as output:
     with open(helpfilename, "r+") as helpfile:
         output.write(".. _nodetool\n\nNodetool\n--------\n\nUsage\n---------\n\n")
         for commandLine in helpfile:

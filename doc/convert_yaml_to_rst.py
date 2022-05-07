@@ -72,8 +72,7 @@ def convert(yaml_file, dest_file):
             except StopIteration:
                 break
 
-            match = option_re.match(line)
-            if match:
+            if match := option_re.match(line):
                 option_name = match.group(2)
                 is_commented = bool(match.group(1))
 
@@ -87,12 +86,10 @@ def convert(yaml_file, dest_file):
                 else:
                     maybe_write_default_value(match, outfile)
                 comments_since_last_option = []
-            else:
-                comment_match = commented_re.match(line)
-                if comment_match:
-                    comments_since_last_option.append(comment_match.group(1))
-                elif line == "\n":
-                    comments_since_last_option.append('')
+            elif comment_match := commented_re.match(line):
+                comments_since_last_option.append(comment_match.group(1))
+            elif line == "\n":
+                comments_since_last_option.append('')
 
 
 def write_section_header(option_name, outfile):
@@ -137,7 +134,11 @@ def write_complex_option(lines, outfile):
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
-        print >> sys.stderr, "Usage: %s <yaml source file> <rst dest file>" % (sys.argv[0],)
+        (
+            print >> sys.stderr,
+            f"Usage: {sys.argv[0]} <yaml source file> <rst dest file>",
+        )
+
         sys.exit(1)
 
     yaml_file = sys.argv[1]

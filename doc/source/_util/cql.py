@@ -196,19 +196,14 @@ def language_callback(lexer, match):
     """
     l = None
     m = language_re.match(lexer.text[max(0, match.start()-100):match.start()])
-    if m is not None:
-        l = lexer._get_lexer(m.group(1))
-    else:
-        l = lexer._get_lexer('java')
-
+    l = lexer._get_lexer(m.group(1)) if m is not None else lexer._get_lexer('java')
     # 1 = $, 2 = delimiter, 3 = $
     yield (match.start(1), String, match.group(1))
     yield (match.start(2), String.Delimiter, match.group(2))
     yield (match.start(3), String, match.group(3))
     # 4 = string contents
     if l:
-        for x in l.get_tokens_unprocessed(match.group(4)):
-            yield x
+        yield from l.get_tokens_unprocessed(match.group(4))
     else:
         yield (match.start(4), String, match.group(4))
     # 5 = $, 6 = delimiter, 7 = $
@@ -276,8 +271,7 @@ class CQLLexer(RegexLexer):
     def get_tokens_unprocessed(self, text, *args):
         # Have a copy of the entire text to be used by `language_callback`.
         self.text = text
-        for x in RegexLexer.get_tokens_unprocessed(self, text, *args):
-            yield x
+        yield from RegexLexer.get_tokens_unprocessed(self, text, *args)
 
     def _get_lexer(self, lang):
         return get_lexer_by_name(lang, **self.options)

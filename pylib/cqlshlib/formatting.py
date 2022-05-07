@@ -43,10 +43,7 @@ controlchars_re = re.compile(r'[\x00-\x31\x7f-\xff]')
 
 def _show_control_chars(match):
     txt = repr(match.group(0))
-    if txt.startswith('u'):
-        txt = txt[2:-1]
-    else:
-        txt = txt[1:-1]
+    txt = txt[2:-1] if txt.startswith('u') else txt[1:-1]
     return txt
 
 
@@ -137,7 +134,7 @@ class CqlType(object):
         self.type_name, self.sub_types, self.formatter = self.parse(typestring, ksmeta)
 
     def __str__(self):
-        return "%s%s" % (self.type_name, self.sub_types or '')
+        return f"{self.type_name}{self.sub_types or ''}"
 
     __repr__ = __str__
 
@@ -162,21 +159,19 @@ class CqlType(object):
         from the keyspace metadata.
         """
         while True:
-            m = self.pattern.match(typestring)
-            if not m:  # no match, either a simple or a user type
-                name = typestring
-                if ksmeta and name in ksmeta.user_types:  # a user type, look at ks meta for sub types
-                    sub_types = [CqlType(t, ksmeta) for t in ksmeta.user_types[name].field_types]
-                    return name, sub_types, format_value_utype
-                else:
-                    return name, [], self._get_formatter(name)
-            else:
+            if m := self.pattern.match(typestring):
                 if m.group(1) == 'frozen':  # ignore frozen<>
                     typestring = m.group(2)
                     continue
 
                 name = m.group(1)  # a composite type, parse sub types
                 return name, self.parse_sub_types(m.group(2), ksmeta), self._get_formatter(name)
+            else:
+                name = typestring
+                if not ksmeta or name not in ksmeta.user_types:
+                    return name, [], self._get_formatter(name)
+                sub_types = [CqlType(t, ksmeta) for t in ksmeta.user_types[name].field_types]
+                return name, sub_types, format_value_utype
 
     @staticmethod
     def _get_formatter(name):
@@ -301,24 +296,24 @@ def format_floating_point_type(val, colormap, float_precision, decimal_sep=None,
         bval = 'NaN'
     elif math.isinf(val):
         bval = 'Infinity' if val > 0 else '-Infinity'
+    elif thousands_sep:
+        dpart, ipart = math.modf(val)
+        bval = format_integer_with_thousands_sep(ipart, thousands_sep)
+        if dpart_str := ('%.*f' % (float_precision, math.fabs(dpart)))[
+            2:
+        ].rstrip('0'):
+            bval += f"{decimal_sep or '.'}{dpart_str}"
     else:
-        if thousands_sep:
-            dpart, ipart = math.modf(val)
-            bval = format_integer_with_thousands_sep(ipart, thousands_sep)
-            dpart_str = ('%.*f' % (float_precision, math.fabs(dpart)))[2:].rstrip('0')
-            if dpart_str:
-                bval += '%s%s' % ('.' if not decimal_sep else decimal_sep, dpart_str)
-        else:
-            exponent = int(math.log10(abs(val))) if abs(val) > sys.float_info.epsilon else -sys.maxsize - 1
-            if -4 <= exponent < float_precision:
-                # when this is true %g will not use scientific notation,
-                # increasing precision should not change this decision
-                # so we increase the precision to take into account the
-                # digits to the left of the decimal point
-                float_precision = float_precision + exponent + 1
-            bval = '%.*g' % (float_precision, val)
-            if decimal_sep:
-                bval = bval.replace('.', decimal_sep)
+        exponent = int(math.log10(abs(val))) if abs(val) > sys.float_info.epsilon else -sys.maxsize - 1
+        if -4 <= exponent < float_precision:
+            # when this is true %g will not use scientific notation,
+            # increasing precision should not change this decision
+            # so we increase the precision to take into account the
+            # digits to the left of the decimal point
+            float_precision = float_precision + exponent + 1
+        bval = '%.*g' % (float_precision, val)
+        if decimal_sep:
+            bval = bval.replace('.', decimal_sep)
 
     return colorme(bval, colormap, 'float')
 
@@ -341,7 +336,7 @@ if sys.version_info >= (2, 7):
 else:
     def format_integer_with_thousands_sep(val, thousands_sep=','):
         if val < 0:
-            return '-' + format_integer_with_thousands_sep(-val, thousands_sep)
+            return f'-{format_integer_with_thousands_sep(-val, thousands_sep)}'
         result = ''
         while val >= 1000:
             val, r = divmod(val, 1000)
@@ -406,7 +401,7 @@ def round_microseconds(val):
         return val
 
     milliseconds = int(m.group(2)) * pow(10, 3 - len(m.group(2)))
-    return '%s.%03d%s' % (m.group(1), milliseconds, '' if not m.group(3) else m.group(3))
+    return '%s.%03d%s' % (m.group(1), milliseconds, m.group(3) or '')
 
 
 @formatter_for('Date')
@@ -425,7 +420,7 @@ def format_value_duration(val, colormap, **_):
 
 
 def duration_as_str(months, days, nanoseconds):
-    builder = list()
+    builder = []
     if months < 0 or days < 0 or nanoseconds < 0:
         builder.append('-')
 
@@ -472,7 +467,7 @@ def decode_unsigned_vint(buf):
 
     size = number_of_extra_bytes_to_read(first_byte)
     retval = first_byte & (0xff >> size)
-    for i in range(size):
+    for _ in range(size):
         b = next(buf)
         retval <<= 8
         retval |= b & 0xff
@@ -496,7 +491,7 @@ def format_value_text(val, encoding, colormap, quote=False, **_):
     escapedval = unicode_controlchars_re.sub(_show_control_chars, escapedval)
     bval = escapedval
     if quote:
-        bval = "'{}'".format(bval)
+        bval = f"'{bval}'"
     return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap, wcwidth.wcswidth(bval))
 
 

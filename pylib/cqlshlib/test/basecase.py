@@ -69,7 +69,7 @@ def dedent(s):
     if lines[0] == '':
         lines = lines[1:]
     spaces = [len(line) - len(line.lstrip()) for line in lines if line]
-    minspace = min(spaces if len(spaces) > 0 else (0,))
+    minspace = min(spaces or (0,))
     return '\n'.join(line[minspace:] for line in lines)
 
 

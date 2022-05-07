@@ -26,12 +26,17 @@ class TestConstants(BaseTestCase):
 
     def test_cql_reserved_keywords(self):
         with open(RESERVED_KEYWORDS_SOURCE) as f:
-            source_reserved_keywords = set(line.rstrip().lower() for line in f)
+            source_reserved_keywords = {line.rstrip().lower() for line in f}
 
         cqlsh_not_source = cql_keywords_reserved - source_reserved_keywords
-        self.assertFalse(cqlsh_not_source, "Reserved keywords in cqlsh not read from source %s."
-                         % (RESERVED_KEYWORDS_SOURCE,))
+        self.assertFalse(
+            cqlsh_not_source,
+            f"Reserved keywords in cqlsh not read from source {RESERVED_KEYWORDS_SOURCE}.",
+        )
+
 
         source_not_cqlsh = source_reserved_keywords - cql_keywords_reserved
-        self.assertFalse(source_not_cqlsh, "Reserved keywords in source %s not appearing in cqlsh."
-                         % (RESERVED_KEYWORDS_SOURCE,))
+        self.assertFalse(
+            source_not_cqlsh,
+            f"Reserved keywords in source {RESERVED_KEYWORDS_SOURCE} not appearing in cqlsh.",
+        )

@@ -274,7 +274,7 @@ def complete_copy_column_names(ctxt, cqlsh):
     ks = cqlsh.cql_unprotect_name(ctxt.get_binding('ksname', None))
     cf = cqlsh.cql_unprotect_name(ctxt.get_binding('cfname'))
     colnames = cqlsh.get_column_names(ks, cf)
-    if len(existcols) == 0:
+    if not existcols:
         return [colnames[0]]
     return set(colnames[1:]) - set(existcols)
 

@@ -57,7 +57,10 @@ def get_smm_sequence(term='xterm'):
     """
     result = ''
     if not is_win():
-        tput_proc = subprocess.Popen(['tput', '-T{}'.format(term), 'smm'], stdout=subprocess.PIPE)
+        tput_proc = subprocess.Popen(
+            ['tput', f'-T{term}', 'smm'], stdout=subprocess.PIPE
+        )
+
         tput_stdout = tput_proc.communicate()[0]
         if (tput_stdout and (tput_stdout != b'')):
             result = tput_stdout
@@ -249,8 +252,7 @@ class ProcRunner:
     def read_lines(self, numlines, blksize=4096, timeout=None):
         lines = []
         with timing_out(timeout):
-            for n in range(numlines):
-                lines.append(self.read_until('\n', blksize=blksize))
+            lines.extend(self.read_until('\n', blksize=blksize) for _ in range(numlines))
         return lines
 
     def read_up_to_timeout(self, timeout, blksize=4096):
@@ -289,9 +291,7 @@ class CqlshRunner(ProcRunner):
         env.setdefault('TERM', 'xterm')
         env.setdefault('CQLSH_NO_BUNDLED', os.environ.get('CQLSH_NO_BUNDLED', ''))
         env.setdefault('PYTHONPATH', os.environ.get('PYTHONPATH', ''))
-        coverage = False
-        if ('CQLSH_COVERAGE' in env.keys()):
-            coverage = True
+        coverage = 'CQLSH_COVERAGE' in env.keys()
         args = tuple(args) + (host, str(port))
         if cqlver is not None:
             args += ('--cqlversion', str(cqlver))
@@ -308,10 +308,7 @@ class CqlshRunner(ProcRunner):
         env.setdefault('CQLSH_PYTHON', sys.executable)  # run with the same interpreter as the test
         ProcRunner.__init__(self, path, tty=tty, args=args, env=env, **kwargs)
         self.prompt = prompt
-        if self.prompt is None:
-            self.output_header = ''
-        else:
-            self.output_header = self.read_to_next_prompt()
+        self.output_header = '' if self.prompt is None else self.read_to_next_prompt()
 
     def read_to_next_prompt(self, timeout=10.0):
         return self.read_until(self.prompt, timeout=timeout, ptty_timeout=3, replace=[DEFAULT_SMM_SEQUENCE,])

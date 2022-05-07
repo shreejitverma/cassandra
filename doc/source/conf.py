@@ -30,7 +30,7 @@ with open(cassandra_build_file) as f:
     m = re.search("name=\"base\.version\" value=\"([^\"]+)\"", f.read())
     if not m or m.lastindex != 1:
         raise RuntimeException("Problem finding version in build.xml file, this shouldn't happen.")
-    cassandra_version = m.group(1)
+    cassandra_version = m[1]
 
 def setup(sphinx):
     sys.path.insert(0, os.path.abspath('./source/_util'))
@@ -155,7 +155,7 @@ html_context = { 'extra_css_files': [ '_static/extra.css' ] }
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
 #
-html_title = u'Apache Cassandra Documentation v%s' % version
+html_title = f'Apache Cassandra Documentation v{version}'
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 #
